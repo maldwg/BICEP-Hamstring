@@ -1,0 +1,27 @@
+pipeline:
+  alerting:
+    external_kafka_topic: "hamstring_alerts"
+
+  zeek:
+    sensors:
+      zeek1:
+        static_analysis: true
+        protocols:
+          - dns
+        interfaces:
+          - enp2s0f0
+
+environment:
+  kafka_brokers:
+    - hostname: kafka1
+      internal_port: 19092
+      external_port: 8097
+      node_ip: 127.0.0.1
+    - hostname: kafka2
+      internal_port: 19093
+      external_port: 8098
+      node_ip: 127.0.0.1
+    - hostname: kafka3
+      internal_port: 19094
+      external_port: 8099
+      node_ip: 127.0.0.1

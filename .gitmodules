@@ -1,0 +1,4 @@
+[submodule "bicep-hamstring/src/utils"]
+	path = bicep-hamstring/src/utils
+	url = https://github.com/maldwg/BICEP_Utils.git
+	branch = main

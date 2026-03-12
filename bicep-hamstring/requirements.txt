@@ -1,0 +1,9 @@
+fastapi[all]
+psutil
+python-dateutil
+PyYAML
+kafka-python
+pytest
+pytest-cov
+pytest-asyncio
+setuptools
