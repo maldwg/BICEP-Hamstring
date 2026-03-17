@@ -123,13 +123,29 @@ jobs:
               }
             }
         
+      - name: Detect base image platforms
+        shell: bash
+        run: |
+          BASE_REF="${BASE_IMAGE_USER}/${BASE_IMAGE}:${OFFICIAL_RELEASE_VERSION}"
+          if docker buildx imagetools inspect "$BASE_REF" > /tmp/imagetools.txt 2> /tmp/imagetools.err; then
+            platforms=$(awk '/Platform:/ {print $2}' /tmp/imagetools.txt | sort -u | paste -sd, -)
+          else
+            echo "Could not inspect base image platforms. Falling back to linux/amd64."
+            platforms="linux/amd64"
+          fi
+          if [ -z "$platforms" ]; then
+            echo "No platforms detected. Falling back to linux/amd64."
+            platforms="linux/amd64"
+          fi
+          echo "PLATFORMS=$platforms" >> $GITHUB_ENV
+
       - name: Set up QEMU for multi platform docker build
         uses: docker/setup-qemu-action@v3
         
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ env.PLATFORMS }}
           context: ./bicep-hamstring
           file: ./bicep-hamstring/Dockerfile
           push: true
