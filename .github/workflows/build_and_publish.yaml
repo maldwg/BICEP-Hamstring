@@ -28,7 +28,7 @@ jobs:
             echo "Package not found."
             OFFICIAL_RELEASE_VERSION=""
         elif [ "$status_code_accessing_registry" -eq 200 ]; then
-            OFFICIAL_RELEASE_VERSION=$(jq -r '.tags[]?' response.json | grep -v '^latest$' | sort -V | tail -n1)
+            OFFICIAL_RELEASE_VERSION=$(jq -r '.tags[]? | select(. != "latest")' response.json | sort -V | tail -n1)
             if [ -z "$OFFICIAL_RELEASE_VERSION" ]; then
               OFFICIAL_RELEASE_VERSION=$(jq -r '.tags[]?' response.json | head -n1)
             fi
@@ -39,7 +39,7 @@ jobs:
             fi
         else
             echo "Unexpected HTTP status code: $status_code_accessing_registry"
-            break
+            exit 1
         fi    
         echo "OFFICIAL_RELEASE_VERSION=$OFFICIAL_RELEASE_VERSION" >> $GITHUB_ENV
 
@@ -57,7 +57,7 @@ jobs:
             echo "Package not found."
             LATEST_PUSHED_RELEASE=""
         elif [ "$status_code_accessing_registry" -eq 200 ]; then
-            LATEST_PUSHED_RELEASE=$(jq -r '.tags[]?' response.json | grep -v '^latest$' | sort -V | tail -n1)
+            LATEST_PUSHED_RELEASE=$(jq -r '.tags[]? | select(. != "latest")' response.json | sort -V | tail -n1)
             if [ -z "$LATEST_PUSHED_RELEASE" ]; then
               LATEST_PUSHED_RELEASE=$(jq -r '.tags[]?' response.json | head -n1)
             fi
