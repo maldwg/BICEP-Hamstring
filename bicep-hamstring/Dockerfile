@@ -13,7 +13,7 @@ COPY ./src/ /opt/code/src
 ENV IDS_MODULE=src.models.hamstring
 ENV IDS_CLASS=Hamstring
 
-RUN python3.12 -m pip install -r requirements.txt
+RUN python3.13 -m pip install -r requirements.txt
 RUN xargs apt install -y < /tmp/apt-requirements.txt
 
 CMD [ "/bin/bash","-c","fastapi dev /opt/code/src/main.py --host 0.0.0.0 --port ${PORT}" ]
