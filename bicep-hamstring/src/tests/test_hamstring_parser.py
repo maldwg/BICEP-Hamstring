@@ -115,8 +115,62 @@ async def test_parse_line_handles_raw_payload(parser: HamstringParser):
 async def test_parse_line_requires_minimum_fields(parser: HamstringParser):
     payload = _sample_payload()
     payload["result"][0]["request"].pop("src_port", None)
+    # Since we have fallbacks, we must also ensure it's not in the top level if we want it to fail
+    payload.pop("src_port", None) 
     with pytest.raises(Exception):
         await parser.parse_line(payload)
+
+
+@pytest.mark.asyncio
+async def test_parse_line_handles_result_as_dict(parser: HamstringParser):
+    payload = _sample_payload()
+    payload["result"] = payload["result"][0]
+    alert = await parser.parse_line(payload)
+    assert alert.source_port == "1668"
+    assert alert.severity == 0.73
+
+
+@pytest.mark.asyncio
+async def test_parse_line_handles_missing_result_with_fallback(parser: HamstringParser):
+    payload = {
+        "src_ip": "192.168.10.9",
+        "src_port": 58467,
+        "alert_timestamp": "2026-03-26T13:07:15",
+        "detector_name": "TestDetector"
+    }
+    alert = await parser.parse_line(payload)
+    assert alert.source_ip == "192.168.10.9"
+    assert alert.source_port == "58467"
+    assert alert.type == "TestDetector"
+
+
+@pytest.mark.asyncio
+async def test_parse_line_handles_user_provided_alert(parser: HamstringParser):
+    user_alert = {
+        "overall_score": 0.0008593629145939803,
+        "result": [
+            {
+                "request": {
+                    "ts": "2017-07-03T09:02:10",
+                    "src_ip": "192.168.10.9",
+                    "src_port": 58467,
+                    "dns_server_ip": "192.168.10.3",
+                    "dns_server_port": 53,
+                    "domain_name": "shield-normandy-elb-prod-2099053585.us-west-2.elb.amazonaws.com",
+                    "record_type": "A"
+                }
+            }
+        ],
+        "src_ip": "192.168.10.9",
+        "alert_timestamp": "2026-03-26T13:07:15.457187",
+        "detector_name": "RF-dga_detector"
+    }
+    alert = await parser.parse_line(user_alert)
+    assert alert.source_ip == "192.168.10.9"
+    assert alert.source_port == "58467"
+    assert alert.severity == 0.0 # rounded from 0.0008
+    assert alert.type == "RF-dga_detector"
+
 
 
 @pytest.mark.asyncio

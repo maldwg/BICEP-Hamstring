@@ -76,7 +76,7 @@ async def test_execute_network_analysis_command(mock_execute_command, ids: Hamst
     mock_execute_command.assert_called_once_with(
         [
             "python3",
-            "./src/zeek_wrapper.py",
+            ids.wrapper_script_path,
             "-m",
             "network",
             "-c",
@@ -91,7 +91,10 @@ async def test_execute_network_analysis_command(mock_execute_command, ids: Hamst
             ",".join(ids.kafka_brokers),
             "--kafka-topic",
             ids.kafka_topic,
-        ]
+        ],
+        cwd=ids.working_dir,
+        suppress_output=False,
+        raise_on_error=True,
     )
     assert pid == 555
 
@@ -113,7 +116,7 @@ async def test_execute_static_analysis_command(mock_execute_command, ids: Hamstr
     mock_execute_command.assert_called_once_with(
         [
             "python3",
-            "./src/zeek_wrapper.py",
+            ids.wrapper_script_path,
             "-m",
             "static",
             "-c",
@@ -128,7 +131,10 @@ async def test_execute_static_analysis_command(mock_execute_command, ids: Hamstr
             ",".join(ids.kafka_brokers),
             "--kafka-topic",
             ids.kafka_topic,
-        ]
+        ],
+        cwd=ids.working_dir,
+        suppress_output=False,
+        raise_on_error=True,
     )
     assert pid == 777
 

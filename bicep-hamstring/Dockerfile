@@ -12,6 +12,7 @@ COPY ./src/ /opt/code/src
 # path to locate the IDSBase implementation
 ENV IDS_MODULE=src.models.hamstring
 ENV IDS_CLASS=Hamstring
+ENV CONFIGURATION_DEFAULT_LOCATION=/app/config.yaml 
 
 RUN python3.13 -m pip install -r requirements.txt
 RUN xargs apt install -y < /tmp/apt-requirements.txt

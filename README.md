@@ -1,13 +1,20 @@
 <div align="center">
-<img alt="Docker Image Version (tag)" src="https://img.shields.io/docker/v/maxldwg/bicep-hamstring/latest?style=for-the-badge&logo=docker&label=Latest%20Version&link=https%3A%2F%2Fhub.docker.com%2Fr%2Fmaxldwg%2Fbicep-hamstring">
-<img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/maxldwg/bicep-hamstring?style=for-the-badge&logo=docker&logoColor=blue&link=https%3A%2F%2Fhub.docker.com%2Fr%2Fmaxldwg%2Fbicep-hamstring">
-<img alt="Codecov" src="https://img.shields.io/codecov/c/github/maldwg/BICEP-Hamstring-image?style=for-the-badge">
-<img alt="GitHub branch status" src="https://img.shields.io/github/checks-status/maldwg/BICEP-hamstring-image/main?style=for-the-badge&label=Tests">
-<br>
-
+  <a href="https://github.com/users/maldwg/packages/container/package/bicep-hamstring">
+    <img alt="Published on GHCR" src="https://img.shields.io/badge/Published%20on-GHCR-2088FF?style=for-the-badge&logo=github">
+  </a>
+  <a href="https://github.com/users/maldwg/packages/container/package/bicep-hamstring">
+    <img alt="Container Image" src="https://img.shields.io/badge/Image-bicep--hamstring-0db7ed?style=for-the-badge&logo=docker">
+  </a>
+  <a href="https://app.codecov.io/gh/maldwg/BICEP-Hamstring">
+    <img alt="Codecov" src="https://img.shields.io/codecov/c/github/maldwg/BICEP-Hamstring?style=for-the-badge">
+  </a>
+  <a href="https://github.com/maldwg/BICEP-Hamstring/actions/workflows/on_push.yml">
+    <img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/maldwg/BICEP-Hamstring/on_push.yml?branch=main&style=for-the-badge&label=Tests">
+  </a>
 </div>
 
-# BICEP-hamstring-image
+
+# BICEP-Hamstring
 Hamstring image adapted for BICEP 
 
 
@@ -27,9 +34,18 @@ This fetches the newest version of the submodule for the backend code and is nec
 
 
 ## Building the project
-TO build a local version of the image for testing purposes, simply run:
-``` 
+To build a local version of the image for testing purposes, run:
+```bash
 cd ./bicep-hamstring
-docker buildx build . --build-arg BASE_IMAGE=ghcr.io/hamstring --build-arg VERSION=1.1.9 -t maxldwg/bicep-hamstring:latest --no-cache
+docker buildx build . \
+  --build-arg BASE_IMAGE=ghcr.io/hamstring-ndr/hamstring-zeek \
+  --build-arg VERSION=<upstream-hamstring-version> \
+  -t maldwg/bicep-hamstring:<version> \
+  --no-cache
 ```
-Change the version to your desried one
+Replace `<upstream-hamstring-version>` with a published `hamstring-zeek` tag. The CI pipeline resolves the latest upstream version automatically when it publishes the image.
+
+To pull the published image from GHCR, run:
+```bash
+docker pull ghcr.io/maldwg/bicep-hamstring:latest
+```

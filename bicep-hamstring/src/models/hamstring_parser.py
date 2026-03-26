@@ -13,6 +13,7 @@ class HamstringParser(IDSParser):
         parsed_lines = set()
 
         if not os.path.isfile(self.alert_file_location):
+            print("No file found!!!")
             return parsed_lines
 
         with open(self.alert_file_location, "r") as alerts:
@@ -23,8 +24,8 @@ class HamstringParser(IDSParser):
                     if parsed_line != None:
                         parsed_lines.add(parsed_line)
                 except Exception as e:
-                    #print(f"could not parse line {line} because of error {e}")
-                    # print(f"could not parse line {line} \n ... skipping")
+                    print(f"could not parse line {line} because of error {e}")
+                    print(f"could not parse line {line} \n ... skipping")
                     continue
         # cleanup the alertsfile after parsing to prevent doubled entries
         open(self.alert_file_location, 'w').close()
@@ -41,14 +42,20 @@ class HamstringParser(IDSParser):
                 return None
 
         parsed_line = Alert()
-        result_list = line.get("result") or []
+        result_content = line.get("result")
+        result_list = []
+        if isinstance(result_content, list):
+            result_list = result_content
+        elif isinstance(result_content, dict):
+            result_list = [result_content]
+        
         request = {}
-        if result_list and isinstance(result_list, list):
+        if result_list:
             first = result_list[0]
             if isinstance(first, dict):
                 request = first.get("request") or {}
 
-        timestamp = line.get("alert_timestamp") or request.get("ts")
+        timestamp = line.get("alert_timestamp") or request.get("ts") or line.get("ts")
         if timestamp:
             try:
                 parsed_line.time = await normalize_timestamp_for_alert(
@@ -60,14 +67,21 @@ class HamstringParser(IDSParser):
         parsed_line.source_ip = line.get("src_ip") or request.get("src_ip")
         if request.get("src_port") is not None:
             parsed_line.source_port = str(request.get("src_port"))
-        parsed_line.destination_ip = request.get("dns_server_ip") or request.get("dst_ip")
+        elif line.get("src_port") is not None:
+             parsed_line.source_port = str(line.get("src_port"))
+
+        parsed_line.destination_ip = request.get("dns_server_ip") or request.get("dst_ip") or line.get("dst_ip") or line.get("dns_server_ip")
         if request.get("dns_server_port") is not None:
             parsed_line.destination_port = str(request.get("dns_server_port"))
+        elif line.get("dst_port") is not None:
+            parsed_line.destination_port = str(line.get("dst_port"))
+        elif line.get("dns_server_port") is not None:
+            parsed_line.destination_port = str(line.get("dns_server_port"))
 
         if not parsed_line.time or not parsed_line.source_ip or not parsed_line.source_port:
             raise Exception("Missing important information in logline")
 
-        detector_name = line.get("detector_name") or "Alert"
+        detector_name = line.get("detector_name") or request.get("name") or "Alert"
         parsed_line.type = detector_name
 
         severity = None
@@ -87,7 +101,7 @@ class HamstringParser(IDSParser):
             parsed_line.severity = round(max(min(severity, 1.0), 0.0), 2)
 
         details = {}
-        domain = request.get("domain_name")
+        domain = request.get("domain_name") or line.get("domain_name")
         if domain:
             details["domain"] = domain
         if request.get("status_code"):
