@@ -27,11 +27,9 @@ class Hamstring(IDSBase):
     def __init__(self):
         super().__init__()
         
-        LOGGER.debug("Start Configuration")
         if not os.path.isdir(self.log_location):
             os.mkdir(self.log_location)
 
-        LOGGER.debug("Load Configuration...")
         try:
             with open(self.configuration_location, "r", encoding="utf-8") as config_file:
                 config = yaml.safe_load(config_file) or {}
