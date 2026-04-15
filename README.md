@@ -40,7 +40,7 @@ cd ./bicep-hamstring
 docker buildx build . \
   --build-arg BASE_IMAGE=ghcr.io/hamstring-ndr/hamstring-zeek \
   --build-arg VERSION=<upstream-hamstring-version> \
-  -t maldwg/bicep-hamstring:<version> \
+  -t ghcr.io/maldwg/bicep-hamstring:<version> \
   --no-cache
 ```
 Replace `<upstream-hamstring-version>` with a published `hamstring-zeek` tag. The CI pipeline resolves the latest upstream version automatically when it publishes the image.
