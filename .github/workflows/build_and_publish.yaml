@@ -6,7 +6,7 @@ permissions:
   packages: write
 env:
   BASE_IMAGE: hamstring-zeek
-  BASE_IMAGE_USER: ghcr.io/hamstring-ndr
+  BASE_IMAGE_USER: ghcr.io/astraos-de
   IMAGE_NAME: bicep-hamstring
   IMAGE_OWNER: ${{ github.repository_owner }}
   REGISTRY: ghcr.io
