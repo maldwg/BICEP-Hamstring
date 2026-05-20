@@ -21,7 +21,7 @@ Hamstring image adapted for BICEP
 The image holds every dependency necessary along with the necessary interface implemented, in order to work with the BICEP application
 
 The main BICEP project is available [here](https://github.com/maldwg/BICEP/tree/main) <br>
-The official Hamstring Project is available [here](https://github.com/orgs/Hamstring-NDR/repositories)
+The Hamstring Zeek image used as the base image is available [here](https://github.com/ASTRAOS-de/hamstring-zeek)
 
 ## Initialize project
 
@@ -38,14 +38,14 @@ To build a local version of the image for testing purposes, run:
 ```bash
 cd ./bicep-hamstring
 docker buildx build . \
-  --build-arg BASE_IMAGE=ghcr.io/hamstring-ndr/hamstring-zeek \
+  --build-arg BASE_IMAGE=ghcr.io/astraos-de/hamstring-zeek \
   --build-arg VERSION=<upstream-hamstring-version> \
-  -t ghcr.io/maldwg/bicep-hamstring:<version> \
+  -t ghcr.io/bicep-pump/bicep-hamstring:<version> \
   --no-cache
 ```
-Replace `<upstream-hamstring-version>` with a published `hamstring-zeek` tag. The CI pipeline resolves the latest upstream version automatically when it publishes the image.
+Replace `<upstream-hamstring-version>` with a published `hamstring-zeek` tag. The CI pipeline resolves the latest upstream version automatically when it publishes the image. This image now wraps the C++ `/opt/hamstring_zeek` implementation from the upstream base image.
 
 To pull the published image from GHCR, run:
 ```bash
-docker pull ghcr.io/maldwg/bicep-hamstring:latest
+docker pull ghcr.io/bicep-pump/bicep-hamstring:latest
 ```

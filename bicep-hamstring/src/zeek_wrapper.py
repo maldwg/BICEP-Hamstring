@@ -2,16 +2,23 @@ import argparse
 import asyncio
 import json
 import os
+import signal
 import shlex
 import sys
 from datetime import datetime
 from typing import List, Optional
 
-from kafka import KafkaConsumer
-from kafka.errors import NoBrokersAvailable
+try:
+    from kafka import KafkaConsumer
+    from kafka.errors import NoBrokersAvailable
+except ImportError:
+    KafkaConsumer = None
+
+    class NoBrokersAvailable(Exception):
+        pass
 
 
-DEFAULT_ZEEK_HANDLER = "/opt/src/zeek/zeek_handler.py"
+DEFAULT_HAMSTRING_ZEEK_BINARY = "/opt/hamstring_zeek"
 ANALYSIS_MODES = ("static", "network")
 DEFAULT_KAFKA_IDLE_SECONDS = 30.0
 DEFAULT_KAFKA_INITIAL_WAIT_SECONDS = 180.0
@@ -21,7 +28,7 @@ DEFAULT_DEBUG_LOG_PATH = "/tmp/zeek_wrapper.log"
 
 def _parse_args(argv: List[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run Zeek analysis (network or static) via zeek_handler.py",
+        description="Run Hamstring Zeek analysis (network or static) via hamstring_zeek",
     )
     parser.add_argument(
         "-m",
@@ -53,12 +60,18 @@ def _parse_args(argv: List[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--working-dir",
-        help="Working directory to execute the Zeek handler from",
+        help="Working directory to execute hamstring_zeek from",
     )
     parser.add_argument(
+        "--hamstring-zeek-bin",
         "--zeek-handler",
-        default=DEFAULT_ZEEK_HANDLER,
-        help="Path to the zeek_handler.py script",
+        dest="hamstring_zeek_bin",
+        default=DEFAULT_HAMSTRING_ZEEK_BINARY,
+        help="Path to the hamstring_zeek binary",
+    )
+    parser.add_argument(
+        "--zeek-config-location",
+        help="Optional override for the Zeek local.zeek path passed to hamstring_zeek",
     )
     parser.add_argument(
         "--kafka-brokers",
@@ -99,8 +112,7 @@ def _parse_args(argv: List[str]) -> argparse.Namespace:
 
 def _build_command(args: argparse.Namespace) -> List[str]:
     command = [
-        "python3",
-        args.zeek_handler,
+        args.hamstring_zeek_bin,
         "-c",
         args.config,
     ]
@@ -108,6 +120,8 @@ def _build_command(args: argparse.Namespace) -> List[str]:
         command.extend(["-i", args.interface])
     else:
         command.extend(["-f", args.file])
+    if args.zeek_config_location:
+        command.extend(["--zeek-config-location", args.zeek_config_location])
 
     return command
 
@@ -158,18 +172,15 @@ def _resolve_path(path: Optional[str], base_dir: str) -> Optional[str]:
 
 
 async def _append_json_line(path: str, payload: str) -> None:
-    def _write() -> None:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "a", encoding="utf-8") as handle:
-            try:
-                parsed = json.loads(payload)
-                json.dump(parsed, handle)
-                handle.write("\n")
-            except json.JSONDecodeError:
-                json.dump({"raw": payload}, handle)
-                handle.write("\n")
-
-    await asyncio.to_thread(_write)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "a", encoding="utf-8") as handle:
+        try:
+            parsed = json.loads(payload)
+            json.dump(parsed, handle)
+            handle.write("\n")
+        except json.JSONDecodeError:
+            json.dump({"raw": payload}, handle)
+            handle.write("\n")
 
 
 async def _stream_process_output(
@@ -186,7 +197,7 @@ async def _stream_process_output(
             return
         decoded = line.decode("utf-8", errors="replace").rstrip()
         if decoded:
-            _debug_log(f"[zeek_handler {label}] {decoded}", debug_log_path, stderr=(label == "stderr"))
+            _debug_log(f"[hamstring_zeek {label}] {decoded}", debug_log_path, stderr=(label == "stderr"))
 
 
 async def _consume_kafka_records(
@@ -289,6 +300,10 @@ async def _run_with_kafka(
     output_path: Optional[str],
     debug_log_path: str,
 ) -> int:
+    if KafkaConsumer is None:
+        _debug_log("kafka-python is not installed.", debug_log_path, stderr=True)
+        return 3
+
     _debug_log(
         f"Creating Kafka consumer for topic={kafka_topic} brokers={kafka_brokers}",
         debug_log_path,
@@ -303,7 +318,7 @@ async def _run_with_kafka(
     )
 
     _debug_log(
-        f"Launching Zeek handler with cwd={working_dir} command={shlex.join(command)}",
+        f"Launching hamstring_zeek with cwd={working_dir} command={shlex.join(command)}",
         debug_log_path,
     )
     process = await asyncio.create_subprocess_exec(
@@ -313,8 +328,9 @@ async def _run_with_kafka(
         stderr=asyncio.subprocess.PIPE,
         stdin=asyncio.subprocess.DEVNULL,
     )
-    _debug_log(f"Spawned Zeek handler pid={process.pid}", debug_log_path)
+    _debug_log(f"Spawned hamstring_zeek pid={process.pid}", debug_log_path)
 
+    loop = asyncio.get_running_loop()
     process_wait_task = asyncio.create_task(process.wait())
     stdout_task = asyncio.create_task(
         _stream_process_output(process.stdout, "stdout", debug_log_path)
@@ -322,6 +338,27 @@ async def _run_with_kafka(
     stderr_task = asyncio.create_task(
         _stream_process_output(process.stderr, "stderr", debug_log_path)
     )
+
+    registered_signals: list[signal.Signals] = []
+
+    def _forward_shutdown_signal(received_signal: signal.Signals) -> None:
+        _debug_log(
+            f"Received {received_signal.name}; forwarding shutdown to hamstring_zeek pid={process.pid}",
+            debug_log_path,
+        )
+        if process.returncode is None:
+            process.terminate()
+
+    for handled_signal in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(
+                handled_signal,
+                _forward_shutdown_signal,
+                handled_signal,
+            )
+            registered_signals.append(handled_signal)
+        except (NotImplementedError, RuntimeError):
+            pass
 
     try:
         if mode == "network":
@@ -336,12 +373,12 @@ async def _run_with_kafka(
                 if process_wait_task.done():
                     return_code = process_wait_task.result()
                     _debug_log(
-                        f"Zeek handler process exited with return code {return_code}",
+                        f"hamstring_zeek process exited with return code {return_code}",
                         debug_log_path,
                         stderr=return_code != 0,
                     )
                     _debug_log(
-                        "Network mode completed because the Zeek handler exited.",
+                        "Network mode completed because hamstring_zeek exited.",
                         debug_log_path,
                     )
                     return return_code
@@ -349,12 +386,12 @@ async def _run_with_kafka(
                 await asyncio.sleep(poll_interval)
 
         _debug_log(
-            "Static mode: waiting for the Zeek handler process to finish before checking Kafka inactivity windows.",
+            "Static mode: waiting for hamstring_zeek to finish before checking Kafka inactivity windows.",
             debug_log_path,
         )
         return_code = await process_wait_task
         _debug_log(
-            f"Zeek handler process exited with return code {return_code}",
+            f"hamstring_zeek process exited with return code {return_code}",
             debug_log_path,
             stderr=return_code != 0,
         )
@@ -369,6 +406,24 @@ async def _run_with_kafka(
         )
         return return_code
     finally:
+        for registered_signal in registered_signals:
+            loop.remove_signal_handler(registered_signal)
+        if process.returncode is None:
+            _debug_log(
+                f"Stopping hamstring_zeek pid={process.pid} during wrapper cleanup",
+                debug_log_path,
+            )
+            process.terminate()
+            try:
+                await asyncio.wait_for(process_wait_task, timeout=10)
+            except asyncio.TimeoutError:
+                _debug_log(
+                    f"hamstring_zeek pid={process.pid} did not stop after SIGTERM; killing it",
+                    debug_log_path,
+                    stderr=True,
+                )
+                process.kill()
+                await process_wait_task
         consumer.close()
         await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
 
@@ -395,17 +450,25 @@ async def _main_async(argv: List[str]) -> int:
         )
         return 2
 
-    resolved_handler = _resolve_path(args.zeek_handler, resolved_working_dir)
+    resolved_binary = _resolve_path(args.hamstring_zeek_bin, resolved_working_dir)
     resolved_config = _resolve_path(args.config, resolved_working_dir)
     resolved_file = _resolve_path(args.file, resolved_working_dir)
-    _debug_log(f"Resolved Zeek handler path: {resolved_handler}", debug_log_path)
+    resolved_zeek_config_location = _resolve_path(
+        args.zeek_config_location, resolved_working_dir
+    )
+    _debug_log(f"Resolved hamstring_zeek path: {resolved_binary}", debug_log_path)
     _debug_log(f"Resolved config path: {resolved_config}", debug_log_path)
+    if resolved_zeek_config_location:
+        _debug_log(
+            f"Resolved Zeek config location: {resolved_zeek_config_location}",
+            debug_log_path,
+        )
     if args.mode == "static":
         _debug_log(f"Resolved dataset path: {resolved_file}", debug_log_path)
 
-    if not resolved_handler or not os.path.isfile(resolved_handler):
+    if not resolved_binary or not os.path.isfile(resolved_binary):
         _debug_log(
-            f"Zeek handler script does not exist: {resolved_handler}",
+            f"hamstring_zeek binary does not exist: {resolved_binary}",
             debug_log_path,
             stderr=True,
         )
@@ -427,10 +490,12 @@ async def _main_async(argv: List[str]) -> int:
         )
         return 2
 
-    args.zeek_handler = resolved_handler
+    args.hamstring_zeek_bin = resolved_binary
     args.config = resolved_config
     if resolved_file:
         args.file = resolved_file
+    if resolved_zeek_config_location:
+        args.zeek_config_location = resolved_zeek_config_location
 
     command = _build_command(args)
     _debug_log(f"Built command: {shlex.join(command)}", debug_log_path)

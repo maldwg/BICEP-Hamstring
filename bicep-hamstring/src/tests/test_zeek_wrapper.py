@@ -1,8 +1,11 @@
 import pytest
 
-pytest.importorskip("kafka")
-
-from src.zeek_wrapper import _main_async, _wait_for_static_kafka_activity
+from src.zeek_wrapper import (
+    _build_command,
+    _main_async,
+    _parse_args,
+    _wait_for_static_kafka_activity,
+)
 
 
 class FakeKafkaRecord:
@@ -20,8 +23,54 @@ class FakeKafkaConsumer:
         return {}
 
 
+def test_build_command_uses_hamstring_zeek_binary_for_static_mode():
+    args = _parse_args(
+        [
+            "-m",
+            "static",
+            "-c",
+            "/app/config.yaml",
+            "-f",
+            "/data/capture.pcap",
+            "--hamstring-zeek-bin",
+            "/opt/hamstring_zeek",
+        ]
+    )
+
+    assert _build_command(args) == [
+        "/opt/hamstring_zeek",
+        "-c",
+        "/app/config.yaml",
+        "-f",
+        "/data/capture.pcap",
+    ]
+
+
+def test_build_command_uses_interface_override_for_network_mode():
+    args = _parse_args(
+        [
+            "-m",
+            "network",
+            "-c",
+            "/app/config.yaml",
+            "-i",
+            "tap123",
+            "--hamstring-zeek-bin",
+            "/opt/hamstring_zeek",
+        ]
+    )
+
+    assert _build_command(args) == [
+        "/opt/hamstring_zeek",
+        "-c",
+        "/app/config.yaml",
+        "-i",
+        "tap123",
+    ]
+
+
 @pytest.mark.asyncio
-async def test_main_async_writes_debug_log_when_handler_is_missing(tmp_path):
+async def test_main_async_writes_debug_log_when_binary_is_missing(tmp_path):
     config_path = tmp_path / "config.yaml"
     dataset_path = tmp_path / "capture.pcap"
     output_dir = tmp_path / "logs"
@@ -41,8 +90,8 @@ async def test_main_async_writes_debug_log_when_handler_is_missing(tmp_path):
             str(output_dir),
             "--working-dir",
             str(tmp_path),
-            "--zeek-handler",
-            "missing_handler.py",
+            "--hamstring-zeek-bin",
+            "missing_hamstring_zeek",
             "--kafka-brokers",
             "127.0.0.1:9092",
             "--kafka-topic",
@@ -53,7 +102,7 @@ async def test_main_async_writes_debug_log_when_handler_is_missing(tmp_path):
     debug_log_path = output_dir / "zeek_wrapper.log"
     assert exit_code == 2
     assert debug_log_path.is_file()
-    assert "Zeek handler script does not exist" in debug_log_path.read_text(
+    assert "hamstring_zeek binary does not exist" in debug_log_path.read_text(
         encoding="utf-8"
     )
 

@@ -1,23 +1,27 @@
-import asyncio
-from src.utils.models.ids_base import IDSBase
-import shutil
 import os
-import yaml
 from typing import Optional
+
+import yaml
+
 from src.utils.general_utilities import execute_command_async
-from .hamstring_parser import HamstringParser
 from src.utils.general_utilities import LOGGER
-from concurrent.futures import ProcessPoolExecutor
-import subprocess
+from src.utils.models.ids_base import IDSBase
+
+from .hamstring_parser import HamstringParser
 
 
 class Hamstring(IDSBase):
-    configuration_location: str = "/app/config.yaml"
+    configuration_location: str = os.getenv(
+        "CONFIGURATION_DEFAULT_LOCATION", "/app/config.yaml"
+    )
     # the interface to listen on in network analysis modes
     log_location: str = "/opt/logs"
 
-    # unqiue variables
-    wrapper_script_path= "/opt/code/src/zeek_wrapper.py"
+    # unique variables
+    wrapper_script_path = "/opt/code/src/zeek_wrapper.py"
+    hamstring_zeek_binary_path = os.getenv(
+        "HAMSTRING_ZEEK_BINARY", "/opt/hamstring_zeek"
+    )
     working_dir = "/opt"
     parser = HamstringParser()
     parser.alert_file_location = f"{log_location}/hamstring.json"
@@ -26,7 +30,7 @@ class Hamstring(IDSBase):
 
     def __init__(self):
         super().__init__()
-        
+
         if not os.path.isdir(self.log_location):
             os.mkdir(self.log_location)
 
@@ -45,22 +49,22 @@ class Hamstring(IDSBase):
             if host and port:
                 kafka_brokers.append(f"{host}:{port}")
         self.kafka_brokers = kafka_brokers
-        LOGGER.debug(f"Brokers: {self.kafka_brokers}")        
+        LOGGER.debug(f"Brokers: {self.kafka_brokers}")
         self.kafka_topic = (
             config.get("pipeline", {})
             .get("alerting", {})
             .get("external_kafka_topic")
         )
         LOGGER.debug(f"Kafka Poll Topic: {self.kafka_topic}")
-        
+
     async def configure(self, temporary_file):
         """
             Configuring a CIDS is not necessary as this involves a complete restart of all components anyways.
             As the config is injected initially via docker compose, just use the init method.
         """
  
-        return "succesfully configured"
-  
+        return "successfully configured"
+
 
     async def configure_ruleset(self, temporary_file):
         """
@@ -84,6 +88,7 @@ class Hamstring(IDSBase):
         if self.log_location:
             command.extend(["-o", self.log_location])
         command.extend(["--working-dir", self.working_dir])
+        command.extend(["--hamstring-zeek-bin", self.hamstring_zeek_binary_path])
         command.extend(["--kafka-brokers", ",".join(self.kafka_brokers)])
         command.extend(["--kafka-topic", self.kafka_topic])
         pid = await execute_command_async(
@@ -110,6 +115,7 @@ class Hamstring(IDSBase):
         if self.log_location:
             command.extend(["-o", self.log_location])
         command.extend(["--working-dir", self.working_dir])
+        command.extend(["--hamstring-zeek-bin", self.hamstring_zeek_binary_path])
         command.extend(["--kafka-brokers", ",".join(self.kafka_brokers)])
         command.extend(["--kafka-topic", self.kafka_topic])
         pid = await execute_command_async(
