@@ -40,12 +40,12 @@ cd ./bicep-hamstring
 docker buildx build . \
   --build-arg BASE_IMAGE=ghcr.io/astraos-de/hamstring-zeek \
   --build-arg VERSION=<upstream-hamstring-version> \
-  -t ghcr.io/bicep-pump/bicep-hamstring:<version> \
+  -t ghcr.io/maldwg/bicep-hamstring:<version> \
   --no-cache
 ```
 Replace `<upstream-hamstring-version>` with a published `hamstring-zeek` tag. The CI pipeline resolves the latest upstream version automatically when it publishes the image. This image now wraps the C++ `/opt/hamstring_zeek` implementation from the upstream base image.
 
 To pull the published image from GHCR, run:
 ```bash
-docker pull ghcr.io/bicep-pump/bicep-hamstring:latest
+docker pull ghcr.io/maldwg/bicep-hamstring:latest
 ```
