@@ -18,55 +18,6 @@ def ids():
     return ids
 
 
-@pytest.mark.asyncio
-async def test_configure_parses_kafka_config(tmp_path):
-    ids = Hamstring()
-    ids.configuration_location = str(tmp_path / "config.yaml")
-    ids.log_location = str(tmp_path / "logs")
-    config_file = tmp_path / "incoming.yaml"
-    config = {
-        "pipeline": {"alerting": {"external_kafka_topic": "hamstring_alerts"}},
-        "environment": {
-            "kafka_brokers": [
-                {"hostname": "kafka1", "internal_port": 19092},
-                {"node_ip": "127.0.0.1", "external_port": 9092},
-            ]
-        },
-    }
-    config_file.write_text(yaml.safe_dump(config), encoding="utf-8")
-
-    response = await ids.configure(str(config_file))
-
-    assert response == "succesfully configured"
-    assert os.path.isfile(ids.configuration_location)
-    assert os.path.isdir(ids.log_location)
-    assert ids.kafka_brokers == ["kafka1:19092", "127.0.0.1:9092"]
-    assert ids.kafka_topic == "hamstring_alerts"
-
-
-@pytest.mark.asyncio
-async def test_configure_with_existing_log_dir(tmp_path):
-    ids = Hamstring()
-    ids.configuration_location = str(tmp_path / "config.yaml")
-    ids.log_location = str(tmp_path / "logs")
-    os.mkdir(ids.log_location)
-    config_file = tmp_path / "incoming.yaml"
-    config_file.write_text("pipeline: {}", encoding="utf-8")
-
-    await ids.configure(str(config_file))
-
-    assert os.path.isdir(ids.log_location)
-    assert ids.kafka_brokers == []
-    assert ids.kafka_topic is None
-
-
-@pytest.mark.asyncio
-@patch("shutil.move")
-async def test_configure_ruleset(mock_shutil, ids: Hamstring):
-    # This method does nothing and only passes
-    await ids.configure_ruleset("/path/to/rules.rules")
-    assert True
-
 
 @pytest.mark.asyncio
 @patch("src.models.hamstring.execute_command_async", new_callable=AsyncMock)

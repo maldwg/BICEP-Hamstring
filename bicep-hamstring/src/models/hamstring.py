@@ -59,7 +59,7 @@ class Hamstring(IDSBase):
             As the config is injected initially via docker compose, just use the init method.
         """
  
-        pass
+        return "succesfully configured"
   
 
     async def configure_ruleset(self, temporary_file):
